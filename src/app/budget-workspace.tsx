@@ -1,4 +1,6 @@
 "use client";
+import { localFetch } from "@/lib/local-fetch";
+
 
 import {
   useEffect,
@@ -421,7 +423,7 @@ function AddPurchaseModal({
   const [merchant, setMerchant] = useState("");
   const [amount, setAmount] = useState("");
   const [category, setCategory] = useState("Groceries");
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(() => new Date(Date.now() - new Date().getTimezoneOffset()*60000).toISOString().slice(0, 10));
   const [note, setNote] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
@@ -432,7 +434,7 @@ function AddPurchaseModal({
     setSaving(true);
     setError("");
     try {
-      const response = await fetch("/api/transactions", {
+      const response = await localFetch("/api/transactions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -450,7 +452,7 @@ function AddPurchaseModal({
 
       if (file) {
         const fileData = await fileAsDataUrl(file);
-        const receiptResponse = await fetch("/api/receipts", {
+        const receiptResponse = await localFetch("/api/receipts", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -558,7 +560,7 @@ function ConnectInboxModal({
     setSaving(true);
     setError("");
     try {
-      const response = await fetch("/api/connections", {
+      const response = await localFetch("/api/connections", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ provider, email }),
@@ -631,9 +633,6 @@ function BudgetPanel({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    setLimits(Object.fromEntries(summaries.map((summary) => [summary.category, String(summary.limit)])));
-  }, [summaries]);
 
   async function save() {
     setSaving(true);
@@ -677,7 +676,7 @@ function BudgetPanel({
               <button className="button button-primary" disabled={saving} onClick={() => void save()} type="button">{saving ? "Saving…" : "Save limits"}</button>
             </div>
           ) : (
-            <button className="button button-secondary" onClick={() => setEditing(true)} type="button">Edit limits</button>
+            <button className="button button-secondary" onClick={() => {setLimits(Object.fromEntries(summaries.map(summary=>[summary.category,String(summary.limit)])));setEditing(true)}} type="button">Edit limits</button>
           )}
         </div>
         {error ? <p className="form-error">{error}</p> : null}
@@ -779,9 +778,9 @@ export default function BudgetWorkspace({
 
   async function refreshWorkspace() {
     const [purchaseResponse, connectionResponse, budgetResponse] = await Promise.all([
-      fetch("/api/transactions", { cache: "no-store" }),
-      fetch("/api/connections", { cache: "no-store" }),
-      fetch("/api/budgets", { cache: "no-store" }),
+      localFetch("/api/transactions", { cache: "no-store" }),
+      localFetch("/api/connections", { cache: "no-store" }),
+      localFetch("/api/budgets", { cache: "no-store" }),
     ]);
     if (purchaseResponse.ok) setPurchases(await purchaseResponse.json());
     if (connectionResponse.ok) setConnections(await connectionResponse.json());
@@ -791,7 +790,7 @@ export default function BudgetWorkspace({
   async function openReceipt(receipt: ReceiptSummary) {
     setReceiptLoading(true);
     try {
-      const response = await fetch(`/api/receipts/${receipt.id}`, { cache: "no-store" });
+      const response = await localFetch(`/api/receipts/${receipt.id}`, { cache: "no-store" });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error ?? "Could not open this receipt.");
       setReceiptPreview(result.receipt);
@@ -805,7 +804,7 @@ export default function BudgetWorkspace({
   async function syncConnection(connection: EmailConnectionRecord) {
     setSyncingId(connection.id);
     try {
-      const response = await fetch("/api/connections/sync", {
+      const response = await localFetch("/api/connections/sync", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ connectionId: connection.id }),
@@ -823,7 +822,7 @@ export default function BudgetWorkspace({
 
   async function deletePurchase(purchase: PurchaseRecord) {
     if (!window.confirm(`Remove ${purchase.merchant} from your activity?`)) return;
-    const response = await fetch(`/api/transactions/${purchase.id}`, { method: "DELETE" });
+    const response = await localFetch(`/api/transactions/${purchase.id}`, { method: "DELETE" });
     const result = await response.json();
     if (!response.ok) {
       setToast(result.error ?? "Could not remove this purchase.");
@@ -834,7 +833,7 @@ export default function BudgetWorkspace({
   }
 
   async function saveBudgets(updates: { category: string; monthlyLimit: number }[]) {
-    const response = await fetch("/api/budgets", {
+    const response = await localFetch("/api/budgets", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ budgets: updates }),
@@ -847,7 +846,7 @@ export default function BudgetWorkspace({
 
   async function removeConnection(connection: EmailConnectionRecord) {
     if (!window.confirm(`Remove the ${connection.provider} sample inbox?`)) return;
-    const response = await fetch(`/api/connections/${connection.id}`, { method: "DELETE" });
+    const response = await localFetch(`/api/connections/${connection.id}`, { method: "DELETE" });
     const result = await response.json();
     if (!response.ok) {
       setToast(result.error ?? "Could not remove this inbox.");
